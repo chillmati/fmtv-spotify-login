@@ -220,12 +220,6 @@
 
     <form id="guest" novalidate>
       <div class="field">
-        <label for="name">Your name <span class="optional">(optional)</span></label>
-        <input id="name" name="name" type="text" maxlength="24" autocomplete="nickname" autocapitalize="words"
-          enterkeyhint="next">
-      </div>
-
-      <div class="field">
         <label for="link">Spotify link</label>
         <p class="hint" id="link-hint">In Spotify, tap Share, then Copy link.</p>
         <div class="row">
@@ -247,7 +241,7 @@
 </main>
 
 <footer>Part of <a href="https://freemytv.io">Free My TV</a>, a home screen for TVs. This page has no tracking: it
-  sends only the link and your name to the TV, through ntfy.sh.</footer>
+  sends only the link to the TV.</footer>
 
 <script>
 'use strict';
@@ -255,7 +249,6 @@
   // The TV's QR code opens this page as .../guest/#t=<topic>; the TV listens on the ntfy.sh topic fmtv-guest-<topic>.
   const RELAY = 'https://ntfy.sh/fmtv-guest-';
   const TOPIC = /^[a-z2-7]{20}$/;
-  const NAME_KEY = 'fmtv-guest-name';
   const NAME_MAX = 24;
   const TIMEOUT_MS = 15000;
 
@@ -297,25 +290,8 @@
     return { error: 'That isn\'t a Spotify link. In Spotify, tap Share, then Copy link, and paste it here.' };
   }
 
-  /** The name as the TV gets it: no control or direction characters, single spaces, at most 24 characters. */
-  function cleanName(text) {
-    const s = String(text || '')
-      .replace(/[\u0000-\u001f\u007f-\u009f‎‏‪-‮⁦-⁩]/g, '')
-      .replace(/\s+/g, ' ')
-      .trim();
-    return Array.from(s).slice(0, NAME_MAX).join('').trim();
-  }
 
-  function loadName() {
-    try { return localStorage.getItem(NAME_KEY) || ''; } catch (e) { return ''; }
-  }
 
-  function saveName(name) {
-    try {
-      if (name) localStorage.setItem(NAME_KEY, name);
-      else localStorage.removeItem(NAME_KEY);
-    } catch (e) { /* the name just isn't remembered */ }
-  }
 
   /** Posts one link to the TV's topic; resolves when ntfy.sh took it, rejects with .why: timeout, busy, refused, offline. */
   function post(topic, uri, name) {
@@ -352,7 +328,6 @@
 
   const views = document.querySelectorAll('[data-view]');
   const form = document.getElementById('guest');
-  const nameField = document.getElementById('name');
   const linkField = document.getElementById('link');
   const pasteButton = document.getElementById('paste');
   const sendButton = document.getElementById('send');
@@ -385,15 +360,12 @@
       return;
     }
     linkField.removeAttribute('aria-invalid');
-    const name = cleanName(nameField.value);
-    nameField.value = name;
-    saveName(name);
 
     sending = true;
     sendButton.disabled = true;
     sendButton.textContent = 'Sending…';
     say('Sending to the TV…', 'working');
-    post(topic, found.uri, name)
+    post(topic, found.uri, '')
       .then(() => {
         linkField.value = '';
         say(SENT[found.kind], 'done');
@@ -403,14 +375,6 @@
         sendButton.disabled = false;
         sendButton.textContent = 'Send';
       });
-  });
-
-  // The keyboard's "next" key sends Enter, which would submit the form before there's a link: go to the link instead.
-  // Not while an IME is composing, where Enter picks the word.
-  nameField.addEventListener('keydown', (event) => {
-    if (event.key !== 'Enter' || event.isComposing) return;
-    event.preventDefault();
-    linkField.focus();
   });
 
   // A message about the last link goes once the guest changes it.
@@ -439,7 +403,6 @@
     });
   }
 
-  nameField.value = cleanName(loadName());
   start();
   // Scanning the code again into this tab changes only the #part, which reloads nothing.
   window.addEventListener('hashchange', start);
