@@ -1,0 +1,39 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="referrer" content="strict-origin-when-cross-origin"><title>Video</title>
+<style>html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#000}#p{position:absolute;left:0;top:0;width:100%;height:100%}</style>
+</head><body><div id="p"></div>
+<script>
+// A muted YouTube player for the TV's Lounge: the TV's page sends {cmd: load|play|pause|seek|stop}, this answers with
+// {ev: state|error|time}. It lives on a web address because YouTube's player refuses pages without one.
+var player = null, apiReady = false, want = null;
+function send(m) { try { parent.postMessage(JSON.stringify(m), '*'); } catch (e) {} }
+function load(m) {
+  if (player && player.loadVideoById) { player.loadVideoById({videoId: m.id, startSeconds: m.at || 0}); player.mute(); return; }
+  player = new YT.Player('p', {
+    videoId: m.id,
+    playerVars: {autoplay: 1, mute: 1, controls: 0, disablekb: 1, fs: 0, iv_load_policy: 3, modestbranding: 1, playsinline: 1, rel: 0, cc_load_policy: 0, start: Math.floor(m.at || 0)},
+    events: {
+      onReady: function (e) { e.target.mute(); e.target.playVideo(); send({ev: 'ready'}); },
+      onStateChange: function (e) { send({ev: 'state', s: e.data, t: player.getCurrentTime ? player.getCurrentTime() : -1}); },
+      onError: function (e) { send({ev: 'error', code: e.data}); }
+    }
+  });
+}
+window.onYouTubeIframeAPIReady = function () { apiReady = true; send({ev: 'api'}); if (want) load(want); };
+window.addEventListener('message', function (e) {
+  var m; try { m = typeof e.data === 'string' ? JSON.parse(e.data) : e.data; } catch (x) { return; }
+  if (!m || !m.cmd) return;
+  if (m.cmd === 'load') { want = m; if (apiReady) load(m); return; }
+  if (!player || !player.pauseVideo) return;
+  if (m.cmd === 'pause') player.pauseVideo();
+  else if (m.cmd === 'play') player.playVideo();
+  else if (m.cmd === 'seek') player.seekTo(m.at, true);
+  else if (m.cmd === 'stop') player.stopVideo();
+});
+setInterval(function () {
+  if (player && player.getCurrentTime) send({ev: 'time', t: player.getCurrentTime(), s: player.getPlayerState(), q: player.getPlaybackQuality ? player.getPlaybackQuality() : ''});
+}, 1000);
+</script>
+<script src="https://www.youtube.com/iframe_api"></script>
+</body></html>
